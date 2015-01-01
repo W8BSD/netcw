@@ -80,6 +80,8 @@ static void tone_thread(void *args)
 
 	period = 1 / (double)(FREQ);
 	s_cycles = roundl(0.010 / period);
+	if (s_cycles < 1)
+		s_cycles = 1;
 	s_len = roundl(SRATE * period * s_cycles);
 	frequency = (double)SRATE/((double)s_len/(double)s_cycles);
 	attack = (uint8_t *)malloc(s_len);
