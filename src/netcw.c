@@ -66,6 +66,7 @@ static void tone_thread(void *args)
 	uint8_t		*silence;
 	uint8_t		*next_sample;
 	double		period;		// Length of a single wave
+	double		frequency;	// Adjusted frequency
 	int			i;
 	int			tmp;
 	double		pos;
@@ -78,8 +79,9 @@ static void tone_thread(void *args)
 	} last_sample = SILENCE;
 
 	period = 1 / (double)(FREQ);
-	s_cycles = roundl(0.035 / period);
+	s_cycles = roundl(0.010 / period);
 	s_len = roundl(SRATE * period * s_cycles);
+	frequency = (double)SRATE/((double)s_len/(double)s_cycles);
 	attack = (uint8_t *)malloc(s_len);
 	decay = (uint8_t *)malloc(s_len);
 	sustain = (uint8_t *)malloc(s_len);
@@ -90,29 +92,19 @@ static void tone_thread(void *args)
 
 	// Now the sustained waveform
 	inc = 8.0 * atan(1.0);
-	inc *= ((double)FREQ / (double)SRATE);
+	inc *= (frequency / (double)SRATE);
 	for (i=0; i<s_len; i++) {
 		pos = (inc*(double)i);
 		pos -= (int)(pos/WAVE_TPI)*WAVE_TPI;
 		sustain[i]=(sin (pos))*127+128;
 	}
-	// Smooth out the transition
-	sustain[s_len-1] = (sustain[s_len-2]+sustain[0])/2;
-	sustain[s_len-2] = (sustain[s_len-3]+sustain[s_len-1])/2;
 
-	// Now distort the sustained waveform into a cosine for the decay
-	inc = 8.0 * atan(1.0);
-	inc *= (((double)FREQ) / (double)SRATE)/s_cycles/2;
+	// Apply a linear ramp
 	for (i=0; i<s_len; i++) {
-		pos = (inc*(double)i);
-		pos -= (int)(pos/WAVE_TPI)*WAVE_TPI;
+		pos = (double)i/s_len;
 		tmp = sustain[i] - 128;
-		decay[i]=(((cos (pos))+1)/2)*tmp+128;
-	}
-
-	// Attack is the reverse of the decay...
-	for (i=0; i<s_len; i++) {
-		attack[i] = 255-decay[s_len-i-1];
+		attack[i] = (tmp*pos)+128;
+		decay[i] = (tmp*(1-pos))+128;
 	}
 
 	// Open the wave out thing...
