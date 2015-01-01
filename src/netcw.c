@@ -375,6 +375,8 @@ int main(int argc, char *argv[])
 				period = new_transition - last_transition;
 			last_DSR = new_DSR;
 			last_transition = new_transition;
+			printf("%c%c\r", new_DSR?'O':'.', protected_int32_value(tone_playing)?'O':'.');
+			fflush(stdout);
 			msg[0] = count++;
 			msg[1] = new_DSR ? MSG_TRANSITION_TO_ON : MSG_TRANSITION_TO_OFF;
 			msg[2] = period >> 8;
@@ -388,9 +390,8 @@ int main(int argc, char *argv[])
 			if (msclock() >= next_remote_transition) {
 				protected_int32_set(&tone_playing, next_tone_playing);
 				remote_change_pending = false;
-#if 0
-				printf("Remote change to %s\n", next_tone_playing ? "ON" : "OFF");
-#endif
+				printf("%c%c\r", new_DSR?'O':'.', protected_int32_value(tone_playing)?'O':'.');
+				fflush(stdout);
 			}
 		}
 		// Now, poll the socket if there's no pending change
