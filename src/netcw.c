@@ -23,8 +23,8 @@
 * SOFTWARE.
 */
 
+#include <sockwrap.h>
 #ifdef _WIN32
-	#include <winsock2.h>
 	#include <windows.h>
 	#include <mmsystem.h>
 #else
@@ -41,7 +41,6 @@
 #include <genwrap.h>
 #include <comio.h>
 #include <threadwrap.h>
-#include <sockwrap.h>
 
 enum msg_type {
 	MSG_TRANSITION_TO_OFF,
