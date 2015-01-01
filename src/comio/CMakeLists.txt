@@ -16,8 +16,6 @@ add_library(comio STATIC ${SOURCE})
 set_target_properties(comio PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
 
 double_require_lib(comio xpdev)
-target_compile_definitions(comio PRIVATE COMIO_EXPORTS)
-target_compile_definitions(comio INTERFACE COMIO_IMPORTS)
 
 set(INSTALL_HEADERS
 	comio.h
