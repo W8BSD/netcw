@@ -14,3 +14,7 @@ Second byte is one of the following:
 Third and fourth byte are a uint16_t in network byte order that measures
 the milliseconds after the last transition that this transition occurs.
 For types 2, 3, and 4, this value is zero.
+
+The key is expected to be connected between the DSR and DTR lines of a serial
+port.  For DE-9 connectors, this is pins 6 and 4.
+
