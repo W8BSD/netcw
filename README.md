@@ -18,3 +18,6 @@ For types 2, 3, and 4, this value is zero.
 The key is expected to be connected between the DSR and DTR lines of a serial
 port.  For DE-9 connectors, this is pins 6 and 4.
 
+The program itself is under a modified MIT license (incorporating the beerware
+license).  The xpdev and comio directories contain LGPLd code from the
+Synchronet Project at http://www.synchro.net/
