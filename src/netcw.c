@@ -60,11 +60,11 @@ static void tone_thread(void *args)
 {
 	int			s_len;		// Length in samples of each waveform
 	int			s_cycles;	// Number of full wave cycles per sample
-	uint8_t		*attack;
-	uint8_t		*decay;
-	uint8_t		*sustain;
-	uint8_t		*silence;
-	uint8_t		*next_sample;
+	int16_t		*attack;
+	int16_t		*decay;
+	int16_t		*sustain;
+	int16_t		*silence;
+	int16_t		*next_sample;
 	double		period;		// Length of a single wave
 	double		frequency;	// Adjusted frequency
 	int			i;
@@ -84,13 +84,13 @@ static void tone_thread(void *args)
 		s_cycles = 1;
 	s_len = roundl(SRATE * period * s_cycles);
 	frequency = (double)SRATE/((double)s_len/(double)s_cycles);
-	attack = (uint8_t *)malloc(s_len);
-	decay = (uint8_t *)malloc(s_len);
-	sustain = (uint8_t *)malloc(s_len);
-	silence = (uint8_t *)malloc(s_len);
+	attack = (int16_t *)malloc(s_len*sizeof(attack[0]));
+	decay = (int16_t *)malloc(s_len*sizeof(decay[0]));
+	sustain = (int16_t *)malloc(s_len*sizeof(sustain[0]));
+	silence = (int16_t *)malloc(s_len*sizeof(silence[0]));
 
 	// Silence is easy...
-	memset(silence, 127, s_len);
+	memset(silence, 0, s_len);
 
 	// Now the sustained waveform
 	inc = 8.0 * atan(1.0);
@@ -98,15 +98,15 @@ static void tone_thread(void *args)
 	for (i=0; i<s_len; i++) {
 		pos = (inc*(double)i);
 		pos -= (int)(pos/WAVE_TPI)*WAVE_TPI;
-		sustain[i]=(sin (pos))*127+128;
+		sustain[i]=(sin (pos))*INT16_MAX;
 	}
 
 	// Apply a linear ramp
 	for (i=0; i<s_len; i++) {
 		pos = (double)i/s_len;
-		tmp = sustain[i] - 128;
-		attack[i] = (tmp*pos)+128;
-		decay[i] = (tmp*(1-pos))+128;
+		tmp = sustain[i];
+		attack[i] = (tmp*pos);
+		decay[i] = (tmp*(1-pos));
 	}
 
 	// Open the wave out thing...
@@ -119,7 +119,7 @@ static void tone_thread(void *args)
 	w.wFormatTag = WAVE_FORMAT_PCM;
 	w.nChannels = 1;
 	w.nSamplesPerSec = SRATE;
-	w.wBitsPerSample = 8;
+	w.wBitsPerSample = sizeof(sustain[0])*8;
 	w.nBlockAlign = (w.wBitsPerSample * w.nChannels) / 8;
 	w.nAvgBytesPerSec = w.nSamplesPerSec * w.nBlockAlign;
 
@@ -128,14 +128,16 @@ static void tone_thread(void *args)
 		goto cleanup_nodsp;
 	}
 	memset(&wh, 0, sizeof(wh));
-	wh[0].dwBufferLength=s_len;
-	wh[1].dwBufferLength=s_len;
+	wh[0].dwBufferLength=s_len * sizeof(sustain[0]);
+	wh[1].dwBufferLength=s_len * sizeof(sustain[0]);
 #else
 	int dsp;
-	int format=AFMT_U8;
+	int format=AFMT_S16_LE;
 	int channels=1;
 	int	rate=SRATE;
 	int	fragsize=0x0003000a;
+	if (htons(0x1234) == 0x1234)
+		format = AFMT_S16_BE;
 
 	// OSS!  Yay!
 	if ((dsp=open("/dev/dsp",O_WRONLY,0))<0) {
@@ -146,8 +148,8 @@ static void tone_thread(void *args)
 		fprintf(stderr, "Unable to set fragsize\n");
 		goto cleanup;
 	}
-	if ((ioctl(dsp, SNDCTL_DSP_SETFMT, &format)==-1) || format!=AFMT_U8) {
-		fprintf(stderr, "Unable to set format to AFMT_U8\n");
+	if ((ioctl(dsp, SNDCTL_DSP_SETFMT, &format)==-1)) {
+		fprintf(stderr, "Unable to set format to AFMT_S16_LE\n");
 		goto cleanup;
 	}
 	else if ((ioctl(dsp, SNDCTL_DSP_CHANNELS, &channels)==-1) || channels!=1) {
@@ -201,7 +203,7 @@ static void tone_thread(void *args)
 				SLEEP(1);
 		}
 		wh[curr_wh].lpData=next_sample;
-		wh[curr_wh].dwBufferLength=s_len;
+		wh[curr_wh].dwBufferLength=s_len * sizeof(sustain[0]);
 		if(waveOutPrepareHeader(waveOut, &wh[curr_wh], sizeof(wh[curr_wh]))==MMSYSERR_NOERROR) {
 			if(waveOutWrite(waveOut, &wh[curr_wh], sizeof(wh[curr_wh]))==MMSYSERR_NOERROR) {
 				curr_wh ^= 1;
@@ -217,13 +219,13 @@ static void tone_thread(void *args)
 		}
 #else
 		int wr=0;
-		while(wr<s_len) {
+		while(wr<(s_len * sizeof(sustain[0]))) {
 			fd_set	wfd;
 			FD_ZERO(&wfd);
 			FD_SET(dsp, &wfd);
 			if (select(dsp+1, NULL, &wfd, NULL, NULL) >= 0) {
 				if (FD_ISSET(dsp, &wfd)) {
-					i=write(dsp, next_sample+wr, s_len-wr);
+					i=write(dsp, next_sample+wr, (s_len * sizeof(sustain[0]))-wr);
 					if(i>=0)
 						wr+=i;
 					else {
