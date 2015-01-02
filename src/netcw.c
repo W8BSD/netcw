@@ -33,6 +33,7 @@
 #endif
 #include <fcntl.h>
 #include <inttypes.h>
+#include <limits.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -52,11 +53,15 @@ enum msg_type {
 
 protected_int32_t	tone_playing;
 
-#define FREQ	800
+#define DEFAULT_FREQ	800
 #define SRATE	22050
 #define WAVE_TPI 6.28318530717958647692
 
-static void tone_thread(void *args)
+struct tone_thread_args {
+	unsigned long	tone;
+};
+
+static void tone_thread(void *passed_args)
 {
 	int			s_len;		// Length in samples of each waveform
 	int			s_cycles;	// Number of full wave cycles per sample
@@ -77,8 +82,10 @@ static void tone_thread(void *args)
 		SUSTAIN,
 		DECAY,
 	} last_sample = SILENCE;
+	struct tone_thread_args	args = *(struct tone_thread_args *)passed_args;
 
-	period = 1 / (double)(FREQ);
+	free(passed_args);
+	period = 1 / (double)(args.tone);
 	s_cycles = roundl(0.010 / period);
 	if (s_cycles < 1)
 		s_cycles = 1;
@@ -281,7 +288,10 @@ int main(int argc, char *argv[])
 	uint8_t		msg[4];
 	uint8_t		missed;
 	int			i;
+	struct tone_thread_args	*ttargs;
 
+	ttargs = calloc(1, sizeof(struct tone_thread_args));
+	ttargs->tone = DEFAULT_FREQ;
 	for (i=1; i<argc; i++) {
 		if (argv[i][0] != '-')
 			goto usage;
@@ -296,6 +306,13 @@ int main(int argc, char *argv[])
 				break;
 			case 'p':
 				com_port = argv[++i];
+				break;
+			case 't':
+				ttargs->tone = strtoul(argv[++i], NULL, 10);
+				if (ttargs->tone < 20 || ttargs->tone > (SRATE/2)) {
+					fprintf(stderr, "Invalid tone (%luHz), using %d\n", ttargs->tone, DEFAULT_FREQ);
+					ttargs->tone = 800;
+				}
 				break;
 		}
 	}
@@ -314,7 +331,7 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	if (_beginthread(tone_thread, 0, NULL) == -1) {
+	if (_beginthread(tone_thread, 0, ttargs) == -1) {
 		fprintf(stderr, "Unable to create tone playing thread\n");
 		return 1;
 	}
@@ -449,6 +466,6 @@ int main(int argc, char *argv[])
 	return 0;
 
 usage:
-	printf("%s -p <COM port> -a <remote IP address> -b <local bind IP address>\n", argv[0]);
+	printf("%s -p <COM port> -a <remote IP address> -b <local bind IP address> -t <tone frequency>\n", argv[0]);
 	return 0;
 }
