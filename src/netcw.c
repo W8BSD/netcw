@@ -322,7 +322,7 @@ int main(int argc, char *argv[])
 	// Open COM port...
 	port = comOpen(com_port);
 	if (port == COM_HANDLE_INVALID) {
-		fprintf(stderr, "Unable to open COM port %s\n", argv[1]);
+		fprintf(stderr, "Unable to open COM port %s\n", com_port);
 		return 1;
 	}
 	comRaiseDTR(port);
