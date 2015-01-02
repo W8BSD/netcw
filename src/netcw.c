@@ -90,7 +90,7 @@ static void tone_thread(void *args)
 	silence = (int16_t *)malloc(s_len*sizeof(silence[0]));
 
 	// Silence is easy...
-	memset(silence, 0, s_len);
+	memset(silence, 0, s_len * sizeof(silence[0]));
 
 	// Now the sustained waveform
 	inc = 8.0 * atan(1.0);
@@ -111,8 +111,9 @@ static void tone_thread(void *args)
 
 	// Open the wave out thing...
 #ifdef _WIN32
+#define WH_COUNT 10
 	WAVEFORMATEX	w;
-	WAVEHDR			wh[2];
+	WAVEHDR			wh[WH_COUNT];
 	HWAVEOUT		waveOut;
 	int				curr_wh=0;
 
@@ -123,13 +124,13 @@ static void tone_thread(void *args)
 	w.nBlockAlign = (w.wBitsPerSample * w.nChannels) / 8;
 	w.nAvgBytesPerSec = w.nSamplesPerSec * w.nBlockAlign;
 
-	if((i=waveOutOpen(&waveOut, WAVE_MAPPER, &w, 0, 0, 0))!=MMSYSERR_NOERROR) {
-		fprintf(stderr, "Unable to open wave mapper\n");
+	if((i=waveOutOpen(&waveOut, WAVE_MAPPER, &w, 0, 0, CALLBACK_NULL))!=MMSYSERR_NOERROR) {
+		fprintf(stderr, "Unable to open wave mapper %d\n", i);
 		goto cleanup_nodsp;
 	}
 	memset(&wh, 0, sizeof(wh));
-	wh[0].dwBufferLength=s_len * sizeof(sustain[0]);
-	wh[1].dwBufferLength=s_len * sizeof(sustain[0]);
+	for (i = 0; i < WH_COUNT; i++)
+		wh[i].dwBufferLength=s_len * sizeof(sustain[0]);
 #else
 	int dsp;
 	int format=AFMT_S16_LE;
@@ -206,7 +207,8 @@ static void tone_thread(void *args)
 		wh[curr_wh].dwBufferLength=s_len * sizeof(sustain[0]);
 		if(waveOutPrepareHeader(waveOut, &wh[curr_wh], sizeof(wh[curr_wh]))==MMSYSERR_NOERROR) {
 			if(waveOutWrite(waveOut, &wh[curr_wh], sizeof(wh[curr_wh]))==MMSYSERR_NOERROR) {
-				curr_wh ^= 1;
+				curr_wh++;
+				curr_wh %= WH_COUNT;
 			}
 			else {
 				fprintf(stderr, "Unable to write sample %d\n", curr_wh);
